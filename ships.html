@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Space game</title>
+<style>body{margin:0;padding:0;}</style>
+<script>
+window.onload = GameMain;
+
+function GameMain(){
+    //---- Canvas & context ----------------------------------------------------
+    var gameCanvas = document.getElementById('canvas');//document.getElementsByTagName('canvas')[0];
+    var gameContext = gameCanvas.getContext('2d');
+
+    if (!gameContext) return;
+
+
+    //---- Variables -----------------------------------------------------------
+    var CAMERA_WIDTH = gameCanvas.width;
+    var CAMERA_HEIGHT = gameCanvas.height;
+
+    var LAYER_WIDTH = 1000; // playable zone;
+    var LAYER_HEIGHT = 1000;
+
+    var FPSlastLoop = new Date; // fps
+    var key = []; // keyboard
+    var layerCanvas = document.createElement('canvas');
+    layerCanvas.width = LAYER_WIDTH;
+    layerCanvas.height = LAYER_HEIGHT;
+    var layerContext = layerCanvas.getContext('2d');
+    var asteroids = [,,,,,,,,,,,,,,,,,,,,];
+	var particles=[];
+
+	const max_channels = 6;
+    var current_channel = 0;
+	var channels = [];
+	var soundExplosion = "http://www.sarcueil.fr/wonderfl/explosion." + supportedAudioFormat();
+
+    var Player = {x:LAYER_WIDTH/2, y:LAYER_HEIGHT/2, status:'stop', speedX:0,
+                  speedY:0, maxspeed:2, angle:0, radius: 20};
+
+    window.addEventListener('keydown', function(evt){
+        key[evt.keyCode]=true;
+    });
+
+    window.addEventListener('keyup', function(evt){
+        key[evt.keyCode]=false;
+    });
+
+    var tileSheet = new Image();
+    tileSheet.src = 'data:image/gif;base64,R0lGODlhIAAbALMIAHIAANI2AP/GAP+EAP///'
+                  + 'wBU//8AAF5eXv///wAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAgALAAA'
+                  + 'AAAgABsAAASSEElUpr3yaI1x7dYmHqBUnOWolueHqXDXoi+8XrM72bbVUrQ'
+                  + 'Mr2dyBYdDIO6D5FFkiGZyYrhIndTQlYgweHfbmMRbFYZHY3L5fFOv2aLulx'
+                  + 'yFb+TUqn3ztXz3XR1vbBMAhVZnEwQBEwEEWlsTAgQDEwMEAmBXFgECjBKdn'
+                  + '2ZIFwADhhKmqKNcF6KgNa2lsylxIBEAOw==';
+
+    for (var i = 0; i < asteroids.length-1; i++)
+        asteroids[i] = { x:random(0, LAYER_WIDTH), y:random(0, LAYER_HEIGHT),
+                        radius:random(40, 90), rotationAngle:random(0, Math.PI*2),
+                        rotationSpeed:random(-10, 10)/100, angle:random(0, Math.PI*2),
+                        speed: random(0, 15)/10};
+
+
+
+    function GameLoop() {
+        //---- Compute FPS -----------------------------------------------------
+        var FPSthisLoop = new Date;
+        var FPS = 1000 / (FPSthisLoop - FPSlastLoop);
+        FPSlastLoop = FPSthisLoop;
+
+        //---- Background ------------------------------------------------------
+        layerContext.fillStyle = '#333'; layerContext.fillRect(0, 0, LAYER_WIDTH, LAYER_HEIGHT);
+
+        //---- Asteroid --------------------------------------------------------
+        for (var i = 0; i < asteroids.length-1; i++) {
+            UpdateAsteroid(asteroids[i]);
+            TestWallAsteroid(asteroids[i]);
+            CollideAsteroid(asteroids[i]);
+        }
+
+        updateParticles();
+        renderParticles();
+
+        //---- Player ----------------------------------------------------------
+        UpdatePlayer();
+
+
+        //---- Camera ----------------------------------------------------------
+        UpdateCamera();
+
+        //---- Display FPS -----------------------------------------------------
+        gameContext.fillStyle = "#fff";
+        gameContext.fillText(parseInt(FPS).toString() + " FPS", 5, 15);
+    }
+
+    //--- Asteroid functions ---------------------------------------------------
+    function UpdateAsteroid(asteroid) {
+        layerContext.save();
+        layerContext.setTransform(1,0,0,1,0,0)
+        layerContext.translate(asteroid.x, asteroid.y);
+        layerContext.rotate(asteroid.rotationAngle);
+        asteroid.rotationAngle+=asteroid.rotationSpeed;
+        asteroid.x+=Math.cos(asteroid.angle)*asteroid.speed;
+        asteroid.y+=Math.sin(asteroid.angle)*asteroid.speed;
+        layerContext.drawImage(tileSheet, 9, 0, 23, 27, -asteroid.radius/2, -asteroid.radius/2, asteroid.radius, asteroid.radius);
+        layerContext.restore();
+    }
+
+    function TestWallAsteroid(asteroid) {
+        if (asteroid.x+asteroid.radius/2 > LAYER_WIDTH || asteroid.x-asteroid.radius/2 < 0 ) {
+            asteroid.angle = Math.PI - asteroid.angle;
+        } else if (asteroid.y+asteroid.radius/2 > LAYER_HEIGHT || asteroid.y-asteroid.radius/2 < 0) {
+            asteroid.angle = Math.PI*2 - asteroid.angle;
+        }
+    }
+
+    function CollideAsteroid(asteroid) {
+        for (var j = 0; j < asteroids.length-1; j++) {
+            if (asteroids[j] == asteroid) continue;
+            if (hitTestCircle(asteroid, asteroids[j])) { // an asteroid with another
+                asteroid.angle = Math.atan2((asteroid.y - asteroids[j].y), (asteroid.x - asteroids[j].x));
+                var temp = asteroid.speed;
+                asteroid.speed = asteroids[j].speed;
+                asteroids[j].speed = temp;
+            }
+            if (hitTestCircle(asteroid, Player)) { // an asteroid with the player
+                createExplode(Player.x, Player.y,50);
+                Player.angle = Math.atan2((Player.y - asteroid.y), (Player.x - asteroid.x))+ Math.PI/2;
+                var temp = (Math.abs(Player.speedX) + Math.abs(Player.speedY))/10 + 2;
+                Player.speedX = temp * Math.cos(Player.angle - Math.PI/2);
+                Player.speedY = temp * Math.sin(Player.angle - Math.PI/2);
+                Player.x += 2 * Math.cos(Player.angle - Math.PI/2);
+                Player.y += 2 * Math.sin(Player.angle - Math.PI/2);
+                playSound(soundExplosion, 1);
+            }
+        }
+    }
+
+    //---- Particles -----------------------------------------------------------
+    function createExplode(x,y,num) {
+        for (var partCtr=0;partCtr<num;partCtr++){
+            var newParticle={dx: Math.random()*3, dy: Math.random()*3,
+                             life: Math.floor(Math.random()*30+30), lifeCtr: 0,
+                             x: x, y: y};
+
+            if (Math.random()<.5) newParticle.dx*=-1;
+            if (Math.random()<.5) newParticle.dy*=-1;
+
+            particles.push(newParticle);
+        }
+    }
+
+	function updateParticles() {
+		var tempParticle={};
+		for (var i=particles.length-1; i>=0; i--){
+			var remove =false;
+			particles[i].x+=particles[i].dx;
+			particles[i].y+=particles[i].dy;
+
+			particles[i].lifeCtr++;
+
+			if (particles[i].lifeCtr > particles[i].life) particles.splice(i,1);
+
+		}
+	}
+
+	function renderParticles() {
+		for (var i = particles.length-1; i>=0; i--){
+			layerContext.save();
+			layerContext.setTransform(1,0,0,1,0,0);
+			layerContext.translate(particles[i].x, particles[i].y);
+
+            layerContext.globalAlpha = (particles[i].life-particles[i].lifeCtr)/particles[i].life;
+			layerContext.fillStyle = '#aaa';
+			layerContext.fillRect(-1, -1, 2, 2);
+
+			layerContext.restore();
+		}
+	}
+
+    function distance(element1,element2) {
+        var dx = element1.x - element2.x;
+        var dy = element1.y - element2.y;
+        return (dx * dx + dy * dy);
+    }
+
+    function hitTestCircle(element1,element2) {
+        return (distance(element1,element2) <= (element1.radius/2 + element2.radius/2) * (element1.radius/2 + element2.radius/2));
+    }
+
+    function UpdatePlayer() {
+        if (key[39]) Player.angle += 0.1;  // right
+        if (key[37]) Player.angle -= 0.1;  // left
+        if (key[38]) Player.status = 'go'; // up
+        else         Player.status = 'stop';
+
+        layerContext.save();
+        layerContext.setTransform(1,0,0,1,0,0);
+        layerContext.translate(Player.x, Player.y);
+        layerContext.rotate(Player.angle);
+
+        switch (Player.status) {
+            case 'stop':
+                // nothing special
+                break;
+            case 'go':
+                Player.speedX += 0.03 * Math.cos(Player.angle - Math.PI/2);
+                Player.speedY += 0.03 * Math.sin(Player.angle - Math.PI/2);
+                layerContext.drawImage(tileSheet, 0, 20, 9, 7, -9, 6, 18, 14);
+                break;
+        }
+
+        Player.x += Player.speedX;
+        Player.y += Player.speedY;
+
+        if (Player.x < 0) Player.x = 0; // bounds
+        if (Player.y < 0) Player.y = 0;
+        if (Player.x > LAYER_WIDTH) Player.x = LAYER_WIDTH;
+        if (Player.y > LAYER_HEIGHT) Player.y = LAYER_HEIGHT;
+
+        layerContext.drawImage(tileSheet, 0, 0, 9, 10, -9, -10, 18, 20);
+        layerContext.restore();
+    }
+
+    function UpdateCamera() {
+        var LayerCanvasX = -Player.x + CAMERA_WIDTH/2;
+        var LayerCanvasY = -Player.y + CAMERA_HEIGHT/2;
+        if (LayerCanvasX > 0) LayerCanvasX = 0;
+        if (LayerCanvasY > 0) LayerCanvasY = 0;
+        if (LayerCanvasX < -LAYER_WIDTH + CAMERA_WIDTH) LayerCanvasX = -LAYER_WIDTH + CAMERA_WIDTH;
+        if (LayerCanvasY < -LAYER_HEIGHT + CAMERA_HEIGHT) LayerCanvasY = -LAYER_HEIGHT + CAMERA_HEIGHT;
+        gameContext.drawImage(layerCanvas, LayerCanvasX, LayerCanvasY);
+    }
+
+    setInterval(GameLoop, 1000/60);
+
+    function random(from, to){
+       return Math.floor(Math.random() * (to - from + 1) + from);
+    }
+
+    function supportedAudioFormat() {
+        var audio = document.createElement("audio");
+        if (!!audio.canPlayType('audio/mpeg;').replace(/no/, ''))
+            return 'mp3';
+        if (!!audio.canPlayType('audio/ogg; codecs="vorbis"').replace(/no/, ''))
+            return 'ogg';
+    }
+
+    function playSound(soundURL, volume) {
+        // not really nice for the memory...
+        // oh well, it's only 10Kb and every browser has a cache
+        var tempSound = document.createElement("audio");
+        tempSound.setAttribute("src", soundURL);
+        tempSound.volume = volume;
+        tempSound.play();
+    }
+}
+</script>
+</head>
+<body>
+<canvas id="canvas" width="465" height="465"></canvas>
+</body>
+</html>
