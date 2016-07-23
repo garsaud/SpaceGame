@@ -6,14 +6,13 @@
 window.onload = GameMain;
 
 function GameMain() {
-	// --- Canvas & context ----------------------------------------------------
+	// Canvas & context
 	var gameCanvas = document.getElementById('canvas');
 	var gameContext = gameCanvas.getContext('2d');
 
 	if (!gameContext) return;
 
-
-	// --- Variables -----------------------------------------------------------
+	// Variables
 	var CAMERA_WIDTH = gameCanvas.width;
 	var CAMERA_HEIGHT = gameCanvas.height;
 
@@ -26,13 +25,25 @@ function GameMain() {
 	layerCanvas.width = LAYER_WIDTH;
 	layerCanvas.height = LAYER_HEIGHT;
 	var layerContext = layerCanvas.getContext('2d');
-	var asteroids = [,,,,,,,,,,,,,,,,,,,,];
+	var asteroids = new Array(20);
 	var particles=[];
 
 	const max_channels = 6;
 	var current_channel = 0;
 	var channels = [];
-	var soundExplosion = "explosion." + supportedAudioFormat();
+	var soundExplosion = document.getElementById('explosion');
+
+	// Pixelate
+	gameContext.imageSmoothingEnabled = false;
+	gameContext.oImageSmoothingEnabled = false;
+	gameContext.msImageSmoothingEnabled = false;
+	gameContext.mozImageSmoothingEnabled = false;
+	gameContext.webkitImageSmoothingEnabled = false;
+	layerContext.imageSmoothingEnabled = false;
+	layerContext.oImageSmoothingEnabled = false;
+	layerContext.msImageSmoothingEnabled = false;
+	layerContext.mozImageSmoothingEnabled = false;
+	layerContext.webkitImageSmoothingEnabled = false;
 
 	var Player = {
 		x:LAYER_WIDTH/2,
@@ -54,12 +65,7 @@ function GameMain() {
 	});
 
 	var tileSheet = new Image();
-	tileSheet.src = 'data:image/gif;base64,R0lGODlhIAAbALMIAHIAANI2AP/GAP+EAP///'
-				  + 'wBU//8AAF5eXv///wAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAgALAAA'
-				  + 'AAAgABsAAASSEElUpr3yaI1x7dYmHqBUnOWolueHqXDXoi+8XrM72bbVUrQ'
-				  + 'Mr2dyBYdDIO6D5FFkiGZyYrhIndTQlYgweHfbmMRbFYZHY3L5fFOv2aLulx'
-				  + 'yFb+TUqn3ztXz3XR1vbBMAhVZnEwQBEwEEWlsTAgQDEwMEAmBXFgECjBKdn'
-				  + '2ZIFwADhhKmqKNcF6KgNa2lsylxIBEAOw==';
+	tileSheet.src = 'data:image/gif;base64,R0lGODlhIAAbALMIAHIAANI2AP/GAP+EAP///wBU//8AAF5eXv///wAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAgALAAAAAAgABsAAASSEElUpr3yaI1x7dYmHqBUnOWolueHqXDXoi+8XrM72bbVUrQMr2dyBYdDIO6D5FFkiGZyYrhIndTQlYgweHfbmMRbFYZHY3L5fFOv2aLulxyFb+TUqn3ztXz3XR1vbBMAhVZnEwQBEwEEWlsTAgQDEwMEAmBXFgECjBKdn2ZIFwADhhKmqKNcF6KgNa2lsylxIBEAOw==';
 
 	for (var i = 0; i < asteroids.length-1; i++)
 		asteroids[i] = {
@@ -73,16 +79,16 @@ function GameMain() {
 		};
 
 	function GameLoop() {
-		// --- Compute FPS -----------------------------------------------------
+		// Compute FPS
 		var FPSthisLoop = new Date;
 		var FPS = 1000 / (FPSthisLoop - FPSlastLoop);
 		FPSlastLoop = FPSthisLoop;
 
-		// --- Background ------------------------------------------------------
+		// Background
 		layerContext.fillStyle = '#333';
 		layerContext.fillRect(0, 0, LAYER_WIDTH, LAYER_HEIGHT);
 
-		// --- Asteroid --------------------------------------------------------
+		// Asteroid
 		for (var i = 0; i < asteroids.length-1; i++) {
 			UpdateAsteroid(asteroids[i]);
 			TestWallAsteroid(asteroids[i]);
@@ -92,19 +98,19 @@ function GameMain() {
 		updateParticles();
 		renderParticles();
 
-		// --- Player ----------------------------------------------------------
+		// Player
 		UpdatePlayer();
 
 
-		// --- Camera ----------------------------------------------------------
+		// Camera
 		UpdateCamera();
 
-		// --- Display FPS -----------------------------------------------------
+		// Display FPS
 		gameContext.fillStyle = "#fff";
 		gameContext.fillText(parseInt(FPS).toString() + " FPS", 5, 15);
 	}
 
-	//--- Asteroid functions ---------------------------------------------------
+	// Asteroid functions
 	function UpdateAsteroid(asteroid) {
 		layerContext.save();
 		layerContext.setTransform(1,0,0,1,0,0)
@@ -160,12 +166,12 @@ function GameMain() {
 				Player.speedY = temp * Math.sin(Player.angle - Math.PI/2);
 				Player.x += 2 * Math.cos(Player.angle - Math.PI/2);
 				Player.y += 2 * Math.sin(Player.angle - Math.PI/2);
-				playSound(soundExplosion, 1);
+				soundExplosion.play();
 			}
 		}
 	}
 
-	// --- Particles -----------------------------------------------------------
+	// Particles
 	function createExplode(x,y,num) {
 		for (var partCtr=0;partCtr<num;partCtr++){
 			var newParticle={
@@ -296,19 +302,13 @@ function GameMain() {
 		if (!!audio.canPlayType('audio/ogg; codecs="vorbis"').replace(/no/, ''))
 			return 'ogg';
 	}
-
-	function playSound(soundURL, volume) {
-		// not really nice for the memory...
-		// oh well, it's only 10Kb and every browser has a cache
-		var tempSound = document.createElement("audio");
-		tempSound.setAttribute("src", soundURL);
-		tempSound.volume = volume;
-		tempSound.play();
-	}
 }
 </script>
 </head>
 <body>
 <canvas id="canvas" width="465" height="465"></canvas>
+<audio id="explosion" autobuffer>
+	<source type="audio/wav" src="data:audio/wav;base64,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">
+</audio>
 </body>
 </html>
